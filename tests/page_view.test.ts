@@ -1,4 +1,4 @@
-import { createEnv, makePage, eventsOf } from "./mockedWx";
+import { createEnv, makePage, makeComponentPage, eventsOf } from "./mockedWx";
 import { init, __resetForTests } from "../src/index";
 
 beforeEach(() => {
@@ -51,31 +51,27 @@ describe("AC2 - page_view wraps Page.onShow (route / prev_route / whitelisted qu
     });
   });
 
-  test("Component-constructed pages emit page_view via pageLifetimes.show", () => {
+  test("Component-constructed pages emit page_view via pageLifetimes.show (query cached by the wrapped onLoad)", () => {
     const env = createEnv();
     env.initSDK({ autoCollect: true });
-    const compPage = {
-      route: "pages/comp-page/index",
+    const instance = makeComponentPage(env, "pages/comp-page/index", {
       pageLifetimes: {
         show() {},
       },
       onLoad(query: Record<string, string>) {
-        (this as any).__trk_query__ = { id: query.id };
+        // business code only; the SDK wrapper caches the filtered query
       },
-    };
-    // register through patched Component()
-    const registered = (globalThis as any).Component(compPage);
-    // give it the cached query like the runtime would after onLoad
-    const instance: any = { route: "pages/comp-page/index" };
-    instance.__trk_query__ = { id: "c_01" };
-    instance.show = registered.pageLifetimes.show.bind(instance);
+    });
+    instance.onLoad({ id: "c_01", phone: "13800000000" });
     instance.show();
     const events = eventsOf(env, "page_view");
     expect(events).toHaveLength(1);
-    expect(events[0].props).toMatchObject({
+    expect(events[0].props).toEqual({
       route: "pages/comp-page/index",
+      prev_route: null,
       id: "c_01",
     });
+    expect(JSON.stringify(events[0].props)).not.toContain("13800000000");
   });
 
   test("embedded components (no route) never emit page_view", () => {

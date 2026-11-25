@@ -1,4 +1,4 @@
-import { createEnv, makePage, eventsOf } from "./mockedWx";
+import { createEnv, makePage, makeComponentPage, eventsOf } from "./mockedWx";
 import { init, __resetForTests } from "../src/index";
 
 beforeEach(() => {
@@ -80,5 +80,27 @@ describe("AC3 - share wraps onShareAppMessage (page / target_type / target_id)",
     const page = makePage(env, "pages/plain/index", { onShow() {} });
     expect(page.onShareAppMessage).toBeUndefined();
     expect(eventsOf(env, "share")).toHaveLength(0);
+  });
+
+  test("Component-constructed pages emit share from methods.onShareAppMessage (return value passes through)", () => {
+    const env = createEnv();
+    env.initSDK({ autoCollect: true });
+    const instance = makeComponentPage(env, "pages/comp-page/index", {
+      pageLifetimes: { show() {} },
+      methods: {
+        onShareAppMessage() {
+          return { title: "示例产业沙龙", path: "/pages/comp-page/index?id=c_042&from=card" };
+        },
+      },
+    });
+    const result = instance.onShareAppMessage({ from: "button" });
+    expect(result).toEqual({ title: "示例产业沙龙", path: "/pages/comp-page/index?id=c_042&from=card" });
+    const events = eventsOf(env, "share");
+    expect(events).toHaveLength(1);
+    expect(events[0].props).toEqual({
+      page: "pages/comp-page/index",
+      target_type: "card",
+      target_id: "c_042",
+    });
   });
 });

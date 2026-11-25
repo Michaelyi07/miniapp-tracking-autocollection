@@ -53,7 +53,6 @@ export function createEnv(): MockEnv {
     emitted,
     initSDK(config: Record<string, any> = {}) {
       // lazy import keeps this helper usable before module side effects
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const sdk = require("../src/index") as typeof import("../src/index");
       sdk.init({ ...config, onEvent: (e: { event: string; props: Record<string, unknown> }) => emitted.push(e) });
     },
@@ -109,9 +108,13 @@ export function makeComponentPage(env: MockEnv, route: string, options: Record<s
   if (opts.pageLifetimes && typeof opts.pageLifetimes.show === "function") {
     instance.show = opts.pageLifetimes.show.bind(instance);
   }
+  // top-level lifecycle handlers (onLoad/onShow/onHide/onUnload/onShareAppMessage)
+  for (const key of ["onLoad", "onShow", "onHide", "onUnload", "onShareAppMessage"]) {
+    if (typeof opts[key] === "function") instance[key] = opts[key].bind(instance);
+  }
   if (opts.methods) {
     for (const [k, fn] of Object.entries(opts.methods)) {
-      if (typeof fn === "function") instance[k] = (fn as any).bind(instance);
+      if (typeof fn === "function" && instance[k] === undefined) instance[k] = (fn as any).bind(instance);
     }
   }
   return instance;

@@ -228,10 +228,12 @@ function wrapPageOptions(options: Record<string, any>): Record<string, any> {
 
 function emitPageView(page: PageInstance): void {
   const query = ((page as any).__trk_query__ ?? {}) as Record<string, string>;
+  // whitelist already applied at onLoad; spread first so reserved fields
+  // (route/prev_route) can never be overridden by whitelisted query keys
   const props: PageViewProps = {
+    ...query,
     route: routeOf(page),
     prev_route: state.lastRoute,
-    ...query, // whitelist already applied at onLoad; non-whitelisted keys never exist here
   };
   autoEmit("page_view", props);
 }
@@ -281,6 +283,42 @@ function wrapComponentOptions(options: Record<string, any>): Record<string, any>
     }
     return origShow ? origShow.call(this) : undefined;
   };
+
+  // Component-constructed pages declare lifecycle callbacks in `methods`
+  // (older base libraries also allow them at top level) - wrap both shapes:
+  // onLoad caches the whitelisted query, onShareAppMessage emits `share`
+  // with the original return value passed through untouched.
+  const methods = (options.methods = options.methods ?? {});
+  const origLoadTop: AnyFn | undefined = options.onLoad;
+  if (typeof origLoadTop === "function") {
+    options.onLoad = function (this: PageInstance, query?: Record<string, string>) {
+      (this as any).__trk_query__ = filterQuery(query, state.whitelist);
+      return origLoadTop.call(this, query);
+    };
+  }
+  const origLoadMethods: AnyFn | undefined = methods.onLoad;
+  if (typeof origLoadMethods === "function") {
+    methods.onLoad = function (this: PageInstance, query?: Record<string, string>) {
+      (this as any).__trk_query__ = filterQuery(query, state.whitelist);
+      return origLoadMethods.call(this, query);
+    };
+  }
+  const origShareMethods: AnyFn | undefined = methods.onShareAppMessage;
+  if (typeof origShareMethods === "function") {
+    methods.onShareAppMessage = function (this: PageInstance, res?: Record<string, any>) {
+      const result = origShareMethods.call(this, res);
+      autoEmit("share", { ...buildShareProps(this, result) });
+      return result;
+    };
+  }
+  const origShareTop: AnyFn | undefined = options.onShareAppMessage;
+  if (typeof origShareTop === "function") {
+    options.onShareAppMessage = function (this: PageInstance, res?: Record<string, any>) {
+      const result = origShareTop.call(this, res);
+      autoEmit("share", { ...buildShareProps(this, result) });
+      return result;
+    };
+  }
 
   options[WRAP_FLAG] = true;
   return options;

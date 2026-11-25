@@ -10,7 +10,8 @@ TypeScript auto-collection module for the member mini-program tracking SDK: thre
 | `page_view` | wrapped `Page.onShow` (and `pageLifetimes.show` of component-constructed pages) | `route`, `prev_route` (route of the previously hidden page; `null` when none), plus whitelisted query params (`id`, `from`) captured at `onLoad` |
 | `share` | wrapped `Page.onShareAppMessage` | `page` (current route), `target_type` / `target_id` (parsed from the whitelisted query of the returned share `path`: `from` → `target_type`, `id` → `target_id`; `null` when the handler returns no path) |
 
-Lifecycle semantics per WeChat official docs: cold start fires `onLaunch` then `onShow` (the first `onShow` belongs to the cold-start sequence and emits no second event); hot start fires `onShow` only. `query` reaches a page only through `onLoad(options)` — the wrapper caches it there; `onShow` has no parameters. `prev_route` is cached on `onHide`/`onUnload`. Embedded components (no `route`) never emit `page_view`, preventing per-component double reports.
+Lifecycle semantics per WeChat official docs: cold start fires `onLaunch` then `onShow` (the first `onShow` belongs to the cold-start sequence and emits no second event); hot start fires `onShow` only. `query` reaches a page only through `onLoad(options)` — the wrapper caches it there; `onShow` has no parameters. `prev_route` is cached on `onHide`/`onUnload` and reported by the next visible page (it is not cleared after consumption; re-showing a page without hiding keeps `prev_route` unchanged).
+Component-constructed pages (official recommended form for complex pages) are wrapped too: `onLoad` (top level or in `methods`) caches the whitelisted query, `methods.onShareAppMessage` / top-level `onShareAppMessage` emit `share`, and `pageLifetimes.show` emits `page_view`. Embedded components (no `route`) never emit `page_view`, preventing per-component double reports.
 
 ## Privacy: query whitelist
 
